@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:aop="http://www.springframework.org/schema/aop"
+    xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans.xsd 
+	http://www.springframework.org/schema/context
+		http://www.springframework.org/schema/context/spring-context.xsd
+	http://www.springframework.org/schema/aop 
+		http://www.springframework.org/schema/aop/spring-aop.xsd
+	http://www.springframework.org/schema/tx 
+		http://www.springframework.org/schema/tx/spring-tx.xsd">
+    
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+    
+    <tx:advice id="transactionAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="*" />
+        </tx:attributes>
+    </tx:advice>
+    
+    <aop:config>
+        <aop:advisor advice-ref="transactionAdvice" pointcut="execution(* trader.*Model*.*(..))"/>
+    </aop:config>
+    
+    <context:property-placeholder location="db.properties"/>
+    
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="${jdbc.driver}"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.user}"/>
+        <property name="password" value="${jdbc.password}"/>
+        <property name="maxActive" value="${jdbc.maxPoolSize}"/>
+    </bean>
+    
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <constructor-arg ref="dataSource" />
+    </bean>
+
+    <bean id="npJdbcTemplate" class="org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate">
+        <constructor-arg ref="dataSource" />
+    </bean>
+    
+    <bean id="brokerDao" class="trader.db.spring.BrokerSpringDAO">
+        <property name="jdbcTemplate" ref="jdbcTemplate"></property>
+        <property name="npJdbcTemplate" ref="npJdbcTemplate"></property>
+    </bean>
+    
+    <bean id="brokerModel" class="trader.BrokerModelImpl" >
+        <!-- for constructor injection -->
+        <!-- name : property 명, ref : bean의 id or name의 값 -->
+        <constructor-arg name="brokerDAO" ref="brokerDao"></constructor-arg>
+    </bean>
+    
+    <bean id="brokerView1" class="trader.BrokerViewImpl">
+        <constructor-arg name="model" ref="brokerModel"></constructor-arg>
+    </bean>
+    <bean id="brokerView2" class="trader.BrokerViewImpl">
+        <constructor-arg name="model" ref="brokerModel"></constructor-arg>
+    </bean>
+    
+    <bean id="brokerController1" class="trader.BrokerControllerImpl">
+        <constructor-arg name="model" ref="brokerModel"></constructor-arg>
+        <constructor-arg name="view" ref="brokerView1"></constructor-arg>
+    </bean>
+    <bean id="brokerController2" class="trader.BrokerControllerImpl">
+        <constructor-arg name="model" ref="brokerModel"></constructor-arg>
+        <constructor-arg name="view" ref="brokerView2"></constructor-arg>
+    </bean>
+    
+    <bean id="PerformanceTrace" class="trader.aop.PerformanceTraceAdvice"></bean>
+    
+    <aop:config>
+        <aop:aspect id="PerformanceTrace" ref="PerformanceTrace" order="1">
+	       	<aop:pointcut expression="execution(* trader.*Model*.*(..))" id="target"/>
+            <aop:around method="trace" pointcut-ref="target"/>
+        </aop:aspect>
+    </aop:config>
+</beans>
